@@ -372,6 +372,7 @@ class GithubLoader{
         githubForm.addEventListener('submit', ()=>this.getFiles(ext) );
         
     }
+    /*
     async getFiles(ext='json'){
             const regex = /https:\/\/github.com\/(?<user>.*)\/(?<repo>.*)\/tree\/([^\/;]+)\/(?<path>.*)/
             let {groups: {user, repo, path}} = regex.exec(this.url.value);
@@ -389,7 +390,62 @@ class GithubLoader{
             } 
             slider = new TemporalSlider(this.data);
        return false;
+    }*/
+    async getFiles(ext){
+        const regex = /https:\/\/github.com\/(?<user>.*)\/(?<repo>.*)\/tree\/([^\/;]+)\/(?<path>.*)/
+        const {groups: {user, repo, path}} = regex.exec(this.url.value);
+        const fileList = await this.loadFilesList(user, repo, path,ext);
+        const data = []
+        for (let item of fileList.items){
+            try {
+                const json = await this.getGitURL(item.git_url);
+                data.push(json)
+            }
+            catch{
+                const json = await this.getRawGit(user,repo, item.path);
+                data.push(json)
+            }
+        }
+        this.load(data)
+
     }
+    async loadFilesList(user, repo, path,ext){
+        if (!localStorage.getItem(user+repo+path+ext)){
+            const fileList = await this.requestFilesList(user,repo,path,ext);
+            localStorage.setItem(user+repo+path+ext, JSON.stringify(fileList));
+        }
+        return JSON.parse(localStorage.getItem(user+repo+path+ext)); 
+    }
+    async requestFilesList(user,repo,path,ext='json'){
+        const responseGETFileList = await fetch(`https://api.github.com/search/code?q=path:${path}+extension:${ext}+repo:${user}/${repo}`) 
+        const fileList = await responseGETFileList.json()
+        return fileList;
+    }
+    async getGitURL(gitURL){
+        const responseGETFile = await fetch(gitURL)
+        const blobData = await responseGETFile.json()
+        const jsonString = atob(blobData.content)
+        const json = JSON.parse(jsonString)
+        return json
+    }
+    async getRawGit(user,repo,path){
+        const url = `https://raw.githack.com/${user}/${repo}/master/${path}`
+        const responseGETFile = await fetch(url)
+        const jsonData = await responseGETFile.json()
+        return jsonData;
+        //const jsonString = atob(blobData.content)
+        //const json = JSON.parse(jsonString)
+        //this.data.push(json)
+    }
+    load(data){
+        //separate out this function
+        let networks = data.map( item => new Graph(item.nodes, item.links))
+        //console.log(networks)
+        //networks = [createGraph()]
+        //console.log(networks)
+        slider = new TemporalSlider(networks);
+        test = slider;
+   }
 }
 
 
